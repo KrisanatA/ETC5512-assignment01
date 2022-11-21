@@ -1,0 +1,182 @@
+---
+title: 'Data on air traffic at IAH and PHX'
+author: "Prepared by Krisanat Anukarnsakulchularp"
+date: 'March 25, 2022'
+header-includes: 
+- \setcounter{secnumdepth}{0}
+output: 
+  html_document:
+    css: assignment.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      eval = FALSE, 
+                      cache = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE)
+options(width=80, digits=3)
+```
+
+# Data description
+
+This data comes from *Office of Airline Information, Bureau of Transportation Statistics* <https://www.transtats.bts.gov/> this is data containing information on the commercial flight that is reported by *US certified air carriers that account for at least one percent of domestic scheduled passenger*. It is an open data falls under the *US open data policy guidelines* where <https://www.data.gov/privacy-policy#license> says "U.S. Federal data available through Data.gov is offered free and without restriction". Since this data is like the census data, Qantas can consider it as the population of the traffic into and out of the airport.
+
+The data is in file `flights.rda` in the `data` directory. It contains these variables:
+
+-   **DAY_OF_MONTH**: information on day of the month
+
+-   **DAY_OF_WEEK**: information on day of the week
+
+-   **FL_DATE**: flight date recorded at the end of the day
+
+-   **OP_UNIQUE_CARRIER**: a Unique Carrier Code used to identify the carrier
+
+-   **TAIL_NUM**: a tail number which used to identify a specific airplane
+
+-   **ORIGIN**: the origin airport where the flight is leaving
+
+-   **DEST**: the destination airport where the flight is landed
+
+-   **CRS_DEP_TIME**: the scheduled departure time
+
+-   **DEP_TIME**: the actual departure time
+
+-   **DEP_DELAY**: difference in minutes between scheduled and actual departure time (negative if early departures)
+
+-   **CRS_ARR_TIME**: the scheduled arrival time
+
+-   **ARR_TIME**: the actual arrival time
+
+-   **ARR_DELAY**: difference in minutes between scheduled and actual arrival time (negative if early arrivals)
+
+-   **CANCELLED**: the indicators whether the flights is cancelled or not
+
+-   **DISTANCE**: distance between airports
+
+To look at whether which airports is best in terms of providing connecting flights Qantas might consider the following:
+
+-   The departure delay of each airports
+
+    -   Qantas would not want their passenger to wait for long-delayed flights and the airport should not have early departures since this could lead to passengers missing the flights.
+    -   The Departure time is also included so Qantas can see during what time of the day the delay is occurring.
+
+-   The arrival delay of each airports
+
+    -   The arrival delay could lead to passengers missing the next flights they have to take.
+    -   The arrival time is also included so Qantas can see during what time of the day that the delay occurs.
+
+-   How many cancelled flights are there for each airports
+
+    -   A high number of flights cancelled could show that the airports may have some issues and the Qantas may want to avoid that airport.
+
+-   The distance from the connecting airport to the other parts of the country
+
+    -   The long-distance flights could mean that the airplane would need additional fuel which leads to higher fuel consumption <https://en.wikipedia.org/wiki/Fuel_economy_in_aircraft>.
+
+To get started in reading the data:
+
+```{r Load data}
+library(tidyverse)
+load(here::here("data/flights.rda"))
+```
+
+# Limitations of the data
+
+When considering the connecting airports there are other factors that contribute to choosing the right airport for the passengers, for example, whether the airport requires passengers to go through the security again?, does the airport have the function that the baggage is automatically check-in to the next flight or the facility of the airport for the passenger's convenience (<https://www.smartertravel.com/how-to-choose-the-right-connecting-airport-for-your-flight/>). Data does not contain these factors in it, which could limit the decision to look only on the company side. This data may also contain the ghost flights (where the flights do not have the passengers) which should be taken into consideration.
+
+# How the data was downloaded, and processed
+
+1.  Go to the websites <https://www.transtats.bts.gov/>
+2.  Click the "Aviation" in the Data Finder box
+3.  Choose the "Airline On-Time Performance Data"
+4.  Click "Download" on the "Reporting Carrier On-Time Performance (1987-present)" table
+5.  Filter Year and Period at top to be "2019" and "December"
+6.  Choose only these variable: DayOfMonth, DayOfWeek, Reporting_Airline, Tail_Number, Origin, Dest, CRSDepTime, DepTime, DepDelay, CRSArrTime, ArrTime, ArrDelay, Cancelled, Distance
+7.  Click "Download" at the top of the table
+
+This data was first need to filter to only contains the airports Qantas are interest in and save into an `.rda` file:
+
+```{r save data into .rda file}
+con_airports <- c("IAH", "PHX")
+flights <- read.csv(here::here("data/T_ONTIME_REPORTING.csv")) %>%
+  filter(ORIGIN %in% con_airports | DEST %in% con_airports)
+save(flights, file = here::here("data/flights.rda"))
+```
+
+Subset the data for each airport outgoing and incoming:
+
+```{r subset data1}
+IAH_outgoing_flights <- flights %>% 
+  filter(ORIGIN == "IAH")
+IAH_incoming_flights <- flights %>% 
+  filter(DEST == "IAH")
+
+PHX_outgoing_flights <- flights %>%
+  filter(ORIGIN == "PHX")
+PHX_incoming_flights <- flights %>%
+  filter(DEST == "PHX")
+```
+
+Subset the data to only contain the delay information:
+
+```{r subset data2}
+IAH_outgoing_flights_delay <- flights %>% 
+  filter(ORIGIN == "IAH") %>%
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, DEP_DELAY)
+IAH_incoming_flights_delay <- flights %>% 
+  filter(DEST == "IAH") %>% 
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, ARR_DELAY)
+
+PHX_outgoing_flights_delay <- flights %>%
+  filter(ORIGIN == "PHX") %>% 
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, DEP_DELAY)
+PHX_incoming_flights_delay <- flights %>%
+  filter(DEST == "PHX") %>% 
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, ARR_DELAY)
+```
+
+Subset the data to only contain the cancelled information:
+
+```{r subset data3}
+IAH_outgoing_flights_cancelled <- flights %>% 
+  filter(ORIGIN == "IAH") %>%
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, CANCELLED)
+IAH_incoming_flights_cancelled <- flights %>% 
+  filter(DEST == "IAH") %>% 
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, CANCELLED)
+
+PHX_outgoing_flights_cancelled <- flights %>%
+  filter(ORIGIN == "PHX") %>% 
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, CANCELLED)
+PHX_incoming_flights_cancelled <- flights %>%
+  filter(DEST == "PHX") %>% 
+  select(DAY_OF_MONTH, DAY_OF_WEEK, ORIGIN, DEST, CANCELLED)
+```
+
+Subset the data to only contain the distance:
+
+```{r subset data4}
+IAH_outgoing_flights_distance <- flights %>%
+  filter(ORIGIN == "IAH") %>%
+  select(ORIGIN, DEST, DISTANCE)
+
+PHX_outgoing_flights_distance <- flights %>%
+  filter(ORIGIN == "PHX") %>%
+  select(ORIGIN, DEST, DISTANCE)
+```
+
+# References
+
+How to choose the right connecting airport for your flight. (2008, June 26). 
+  SmarterTravel. https://www.smartertravel.com/how-to-choose-the-right-connecting-airport-for-your-flight/
+
+OST_R | BTS | Transtats. (n.d.). Retrieved from www.transtats.bts.gov website: https://www.transtats.bts.gov/
+
+Privacy and Website Policies. (n.d.). Data.gov. https://www.data.gov/privacy-policy#license
+  
+Wickham et al., (2019). Welcome to the tidyverse. Journal of Open
+  Source Software, 4(43), 1686, https://doi.org/10.21105/joss.01686
+
+Wikipedia Contributors. (2019, May 9). Fuel economy in aircraft. Wikipedia; Wikimedia 
+  Foundation. https://en.wikipedia.org/wiki/Fuel_economy_in_aircraft

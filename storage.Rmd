@@ -1,0 +1,117 @@
+---
+title: 'Data on emu populations near Exmouth and Adelaide'
+author: "Prepared by Krisanat Anukarnsakulchularp"
+date: 'March 25, 2022'
+header-includes: 
+- \setcounter{secnumdepth}{0}
+output: 
+  html_document:
+    css: assignment.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      eval = FALSE, 
+                      cache = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE)
+options(width=80, digits=3)
+```
+
+# Data description
+
+The data comes from *Atlas of Living Australia* ([https://www.ala.org.au/](https://www.ala.org.au/)). This is Australia’s national biodiversity database, for example, the species occurrence records, where the record is based on *Darwin Core* data standard. It is open data with a *creative commons license* where the core conditions are the following: 
+
+-   “This applies to every Creative Commons work. Whenever a work is copied or redistributed under a Creative Commons licence, the original creator (and any other nominated parties) must be credited and the source linked to.”
+-   “Lets others copy, distribute, display and perform the work for noncommercial purposes only.”
+-   “Lets others distribute, display and perform only verbatim copies of the work. They may not adapt or change the work in any way.”
+-   “Allows others to remix, adapt and build on the work, but only if they distribute the derivative works under the same the licence terms that govern the original work.” ([https://creativecommons.org.au/learn/licences/](https://creativecommons.org.au/learn/licences/)). 
+
+Since this data is like the survey data of the people who have uploaded the photo of the occurrence of the species, it should represent the population of where the local emus lives.
+
+The data is in file `emus.rda` in the `data` directory. It contains these variables:
+
+-   **Latitude**: the values used to pin point the location on the Earth (needs both Latitude and Longitude)
+
+-   **Longitude**: the values used to pin point the location on the Earth (needs both Latitude and Longitude)
+
+-   **eventDate**: the date of the occurences
+
+-   **recordID**: the identification used for identified the record
+
+-   **dataResourceName**: where the data came from
+
+Qantas want to look for the storage facility that would have the least impact on the local emu population, therefore the above variable is required since *Latitude* and *Longitude* tell Qantas where has the Emu population has been a sight, the *eventDate* tell Qantas when is sight being recorded, and they would need to confirm the record using the *recordID* and the *dataResourceName*.
+
+To get started in reading the data:
+
+```{r load data}
+library(tidyverse)
+load(here::here("data/emus.rda"))
+```
+
+# Limitations of the data
+
+There is a possibility that there are emus that have yet to be seen and that there is no record of it yet. Since Qantas’s aim is to look at the impact on the local emu, this data should represent the population of the local emus near the candidate locations. However, there is another factor in building a storage facility as well, for example, the distance from the airport they are operated and the storage facility, or the climate condition [https://simpleflying.com/unused-aircraft-desert/](https://simpleflying.com/unused-aircraft-desert/). It does not include all the above in this data set. This will require Qantas to source another data for this information.
+
+# How the data was downloaded, and processed
+
+1.    Sign up an account in this [Website](https://www.ala.org.au/)
+2.    Install the galah packages `install.packages("galah")`
+3.    Used the `galah_config()` to enter the registered email and stated the reason for downloaded since Qantas want to   look at the impact on the emus the "ecological research" reason or `download_reaon_id = 7` is entered 
+4.    Used the `ala_occurrences()` to download the occurrence of the emus, set the `select_taxa()` as "Dromaius novaehollandiae" which is the scientific name of emus
+5.    Used the `rename()` to rename the longitude and latitude where it defaulted as *decimalLongitude* and *decimalLatitude*. Then mutate the eventDate from character to date, filter to only contain the occurrence records dating from Jan 1, 2000, filter out all the missing values, and select only these variable: Latitude, Longitude, eventDate, recordID, dataResourceName
+  
+
+```{r download data}
+library(galah)
+galah_config(email = "kanu0003@student.monash.edu",
+             download_reason_id = 7, 
+             verbose = TRUE)
+emus <- ala_occurrences(
+  taxa = select_taxa("Dromaius novaehollandiae"))
+
+emus <- emus %>%
+  rename(Longitude = decimalLongitude,
+         Latitude = decimalLatitude) %>%
+  mutate(eventDate = as.Date(eventDate)) %>%
+  filter(eventDate >= as.Date("2000-01-01")) %>%
+  filter(!is.na(eventDate)) %>%
+  filter(!is.na(Longitude)) %>%
+  filter(!is.na(Latitude)) %>%
+  select("Latitude", "Longitude", "eventDate", "recordID", "dataResourceName")
+
+save(emus, file = here::here("data/emus.rda"))
+```
+
+Subset the data to contain an occurrence records within a 100km radius of each airports (Exmouth and Adelaide):
+
+```{r create subset}
+exmouth <- tibble(lat = -21.9323, long = 114.1279)
+adelaide <- tibble(lat = -34.9285, long = 138.6007)
+  
+emus_exmouth <- emus %>%
+  filter(between(Longitude, min(exmouth$long) - 1, max(exmouth$long) + 1),
+         between(Latitude, min(exmouth$lat) - 1, max(exmouth$lat) + 1))
+
+emus_adelaide <- emus %>%
+  filter(between(Longitude, min(adelaide$long) - 1, max(adelaide$long) + 1),
+         between(Latitude, min(adelaide$lat) - 1, max(adelaide$lat) + 1))
+```
+
+# References
+
+About the Licences. (2010, July 23). Creative Commons Australia. https://creativecommons.org.au/learn/licences/
+
+Atlas of Living Australia – Open access to Australia’s biodiversity data. (n.d.). Atlas of Living 
+  Australia. https://www.ala.org.au/
+
+Stevenson M, Westgate M, Newman P (2022). _galah: Atlas of Living
+  Australia (ALA) Data and Resources in R_. R package version 1.4.0, 
+  <URL: https://CRAN.R-project.org/package=galah>.
+
+Why Unused Aircraft Are Typically Stored In The Desert. (2021, January 23). Simple 
+  Flying. https://simpleflying.com/unused-aircraft-desert/
+
+Wickham et al., (2019). Welcome to the tidyverse. Journal of Open
+  Source Software, 4(43), 1686, https://doi.org/10.21105/joss.01686
